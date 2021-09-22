@@ -3,10 +3,10 @@
 
 #include <glib.h>
 
-typedef struct product {
+struct product_t {
     int *coefficients;
     double sum;
-} product_t;
+};
 
 struct constants_t {
     int order;
@@ -38,10 +38,7 @@ void calculate(double* transmitFreqs, size_t freqsLen, int order) {
     // Allocate a coefficients array to track the coefficients for each freq
     coefficients = (int*)malloc(freqsLen * sizeof(int));
 
-    GArray* products = g_array_new(FALSE, FALSE, sizeof(product_t*));
-    // product_t* product;
-    // product->sum = 0;
-    // g_array_append_val(products, product);
+    GArray* products = g_array_new(FALSE, FALSE, sizeof(struct product_t*));
 
     // Store some values as constants
     struct constants_t constants;
@@ -50,18 +47,26 @@ void calculate(double* transmitFreqs, size_t freqsLen, int order) {
     constants.midpoint = midpoint;
     constants.transmitFreqs = transmitFreqs;
 
+    // Start timer
+    clock_t start = clock();
+    // Run main function
     add_positive_signal(products, coefficients, 1, 0, 0, &constants);
+    // Print time taken
+    clock_t end = clock();
+    double time = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Time taken: %f\n", time);
 
-    printf("Printing products\n");
     // Print the array of products
-    printf("%i\n", products->len);
-    product_t* product;
+    printf("Got %i products.\n", products->len);
+    return;
+    printf("Printing products\n");
+    struct product_t* product;
     for (int i = 0; i < products->len; i++) {
-        product = g_array_index(products, product_t*, i);
+        product = g_array_index(products, struct product_t*, i);
         // Print the array of coefficients
         printf("[");
         for (int j = 0; j < freqsLen; j++) {
-            printf("%d ", product->coefficients[j]);
+            printf("%d\t", product->coefficients[j]);
         }
         printf("] %f\n", product->sum);
     }
@@ -76,7 +81,7 @@ void add_positive_signal(GArray* products, int* coefficients, int depth, double 
         }
 
         // Create a copy of the coeffiecients and sum so we don't modify the original each loop
-        int updatedCoefficients[constants->freqsLen];
+        int *updatedCoefficients = malloc(constants->freqsLen * sizeof(int));
         memcpy(updatedCoefficients, coefficients, constants->freqsLen * sizeof(int));
         double updatedSum = sum;
 
@@ -96,15 +101,10 @@ void add_positive_signal(GArray* products, int* coefficients, int depth, double 
         } else {
             // If we have reached the deepest depth, add the product to products
             // Note that the coefficients will not be modified as we are not recursing any more
-            product_t* product = (product_t*)malloc(sizeof(product_t));
+            struct product_t* product = malloc(sizeof(struct product_t));
             
             product->coefficients = updatedCoefficients;
             product->sum = updatedSum;
-            // print the coefficients
-            for (int j = 0; j < constants->freqsLen; j++) {
-                printf("%d ", product->coefficients[j]);
-            }
-            printf("-> %f\n", product->sum);
             g_array_append_val(products, product);
         }
     }
@@ -126,7 +126,7 @@ void add_negative_signal(GArray* products, int* coefficients, int depth, double 
         }
 
         // Create a copy of the coeffiecients and sum so we don't modify the original each loop
-        int updatedCoefficients[constants->freqsLen];
+        int *updatedCoefficients = malloc(constants->freqsLen * sizeof(int));
         memcpy(updatedCoefficients, coefficients, constants->freqsLen * sizeof(int));
         double updatedSum = sum;
 
@@ -142,25 +142,36 @@ void add_negative_signal(GArray* products, int* coefficients, int depth, double 
         } else {
             // If we have reached the deepest depth, add the product to products
             // Note that the coefficients will not be modified as we are not recursing any more
-            product_t* product = (product_t*)malloc(sizeof(product_t));
+            struct product_t* product = malloc(sizeof(struct product_t));
             product->coefficients = updatedCoefficients;
             product->sum = updatedSum;
-            // print the coefficients
-            for (int j = 0; j < constants->freqsLen; j++) {
-                printf("%d ", product->coefficients[j]);
-            }
-            printf("-> %f\n", product->sum);
             g_array_append_val(products, product);
         }
     }
 }
 
-void main() {
-    double transmitFreqs[] = {101.0, 101.5, 102.0};
-    
-    // Calculate the number of frequencies
-    size_t freqsLen = sizeof(transmitFreqs) / sizeof(transmitFreqs[0]);
-    int order = 3;
+void main(int argc, char** argv) {
+    if (argc < 4) {
+        fprintf(stderr, "Error: not enough arguments.\nRun with:\n\t./calculator ORDER FREQ1 FREQ2 [FREQ3 .. FREQn]\n");
+        exit(1);
+    }
+
+    int order = atoi(argv[1]);
+    // Set the transmit frequencies to argv[2] to argv[argc - 1]
+    size_t freqsLen = argc - 2;
+    double* transmitFreqs = malloc(freqsLen * sizeof(double));
+    for (int i = 2; i < argc; i++) {
+        transmitFreqs[i - 2] = atof(argv[i]);
+    }
+
+    // Print order
+    printf("ORDER: %d\n", order);
+    // Print transmit frequencies
+    printf("FREQUENCIES: [");
+    for (int i = 0; i < freqsLen; i++) {
+        printf("%f ", transmitFreqs[i]);
+    }
+    printf("]\n");
 
     calculate(transmitFreqs, freqsLen, order);
 }

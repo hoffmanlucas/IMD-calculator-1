@@ -1,3 +1,5 @@
+
+import sys
 import time
 from typing import List
 
@@ -98,8 +100,18 @@ class IMDCalculator:
 
 
 if __name__ == "__main__":
-    transmit_freqs = [101.12, 101.15, 100.97, 99.64, 112.54, 102.32, 101.74]
-    order = 15
+
+    if (len(sys.argv) < 4):
+        print("Usage: python3 calculator.py <order> <transmit_freq_1> <transmit_freq_2> ...", file=sys.stderr)
+        exit(1)
+
+    order = int(sys.argv[1])
+    transmit_freqs = [float(freq) for freq in sys.argv[2:]]
+
+    # Print order
+    print("ORDER: {}".format(order))
+    # Print frequencies
+    print("FREQUENCIES: {}".format(transmit_freqs))
 
     calc = IMDCalculator(transmit_freqs)
     start = time.time()
@@ -107,4 +119,7 @@ if __name__ == "__main__":
     end = time.time()
     print("Time taken: {} seconds".format(round(end - start, 5)))
     print("Found {} IMD products".format(len(result)))
-    # print(result)
+
+    exit(0)
+    for product in result:
+        print("{} -> {}".format(*product))
