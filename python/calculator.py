@@ -20,7 +20,7 @@ class IMDCalculator:
 
         # Declare these now ready to make the code look nicer
         self.order = None
-        self.products: None
+        self.products = None
 
     def calculate(self, order: int):
         coefficients = np.zeros(len(self.transmit_freqs), "int8")
