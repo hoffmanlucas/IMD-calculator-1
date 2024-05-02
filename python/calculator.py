@@ -4,6 +4,7 @@ import time
 from typing import List
 
 import numpy as np
+import numba 
 
 
 class IMDCalculator:
@@ -19,7 +20,7 @@ class IMDCalculator:
 
         # Declare these now ready to make the code look nicer
         self.order = None
-        self.products = None
+        self.products: None
 
     def calculate(self, order: int):
         coefficients = np.zeros(len(self.transmit_freqs), "int8")
@@ -28,11 +29,16 @@ class IMDCalculator:
         elif order < 3:
             raise ValueError("order must be 3 or higher. Got {}".format(order))
         self.order = order
-        self.products = list()
+        
+        # pass in the first product so NUMBA can infer the types
+        # this is a hacky way to get around the fact that NUMBA doesn't support lists
+        # Remove it from the final result
+        self.products: list = [(np.array([1], dtype=np.int8), 1.2)] 
         self.midpoint = int(np.ceil(order / 2.0))
         self.add_positive_signal(coefficients)
-
+        
         return self.products
+
 
     def add_positive_signal(
         self,
@@ -41,40 +47,72 @@ class IMDCalculator:
         sum: float = 0,
         last_index: int = 0,
     ):
-        for index in range(last_index, len(coefficients)):
-            # Ignore harmonics
-            # ? If we've only added to the same index, the signal is a harmonic
-            if coefficients[index] == self.order - 1:
-                continue
+        return add_positive_signal(coefficients, self.transmit_freqs, self.midpoint, self.order, self.products, depth, sum, last_index)
+    
 
-            updated_coefficients = coefficients.copy()
-            updated_sum = sum
 
-            updated_coefficients[index] += 1
-            updated_sum += self.transmit_freqs[index]
+@numba.jit
+def add_positive_signal(
+    coefficients: np.ndarray,
+    transmit_freqs: np.ndarray,
+    midpoint: int,
+    order: int,
+    products: list,
+    depth: int = 1,
+    sum: float = 0,
+    last_index: int = 0,
+):
+    for index in range(last_index, len(coefficients)):
+        # Ignore harmonics
+        # ? If we've only added to the same index, the signal is a harmonic
+        if coefficients[index] == order - 1:
+            continue
 
-            # If we aren't at the deepest depth, recurse some more
-            if depth < self.order:
-                self.add_positive_signal(
+        updated_coefficients = coefficients.copy()
+        updated_sum = sum
+
+        updated_coefficients[index] += 1
+        updated_sum += transmit_freqs[index]
+
+        # If we aren't at the deepest depth, recurse some more
+        if depth < order:
+            add_positive_signal(
+                updated_coefficients,
+                transmit_freqs,
+                midpoint,
+                order,
+                products,
+                depth=depth + 1,
+                sum=updated_sum,
+                last_index=index,
+            )
+            # We only need to take the negative path when we at half the depth
+            if depth >= midpoint:
+                add_negative_signal(
                     updated_coefficients,
+                    transmit_freqs,
+                    midpoint,
+                    order,
+                    products,
                     depth=depth + 1,
                     sum=updated_sum,
                     last_index=index,
                 )
-                # We only need to take the negative path when we at half the depth
-                if depth >= self.midpoint:
-                    self.add_negative_signal(
-                        updated_coefficients,
-                        depth=depth + 1,
-                        sum=updated_sum,
-                        last_index=index,
-                    )
-            # If we are as deep as we can go, add the intermodulation
-            else:
-                self.products.append((updated_coefficients, round(updated_sum, 10)))
+        # If we are as deep as we can go, add the intermodulation
+        else:
+            products.append((updated_coefficients, round(updated_sum, 10)))
 
-    def add_negative_signal(
-        self, coefficients: np.ndarray, depth: int, sum: float = 0, last_index: int = 0
+            
+@numba.jit
+def add_negative_signal(
+        coefficients: np.ndarray,
+        transmit_freqs: np.ndarray,
+        midpoint: int,
+        order: int,
+        products: list,
+        depth: int = 1,
+        sum: float = 0,
+        last_index: int = 0,
     ):
         # If the last index to be added to was negative, skip all previous indices (there's a reason for this)
         last_index = last_index if coefficients[last_index] < 0 else 0
@@ -88,15 +126,22 @@ class IMDCalculator:
             updated_sum = sum
 
             updated_coefficients[index] -= 1
-            updated_sum -= self.transmit_freqs[index]
+            updated_sum -= transmit_freqs[index]
 
-            if depth < self.order:
+            if depth < order:
                 # We don't add positive signals because then we'd double up on results
-                self.add_negative_signal(
-                    updated_coefficients, depth + 1, sum=updated_sum, last_index=index
+                add_negative_signal(
+                    updated_coefficients, 
+                    transmit_freqs,
+                    midpoint,
+                    order,
+                    products,
+                    depth + 1, 
+                    sum=updated_sum, 
+                    last_index=index
                 )
             else:
-                self.products.append((updated_coefficients, round(updated_sum, 10)))
+                products.append((updated_coefficients, round(updated_sum, 10)))
 
 
 if __name__ == "__main__":
