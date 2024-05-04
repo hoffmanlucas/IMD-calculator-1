@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
     calc = IMDCalculator(transmit_freqs)
     start = time.time()
-    result = calc.calculate(order)
+    result = calc.calculate(order)[1:] # Remove the first item - it's a hacky way to get around NUMBA's lack of list support
     end = time.time()
     print("Time taken: {} seconds".format(round(end - start, 5)))
     print("Found {} IMD products".format(len(result)))
