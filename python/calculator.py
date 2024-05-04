@@ -51,7 +51,7 @@ class IMDCalculator:
     
 
 
-@numba.jit
+@numba.jit(nopython=True)
 def add_positive_signal(
     coefficients: np.ndarray,
     transmit_freqs: np.ndarray,
@@ -103,7 +103,7 @@ def add_positive_signal(
             products.append((updated_coefficients, round(updated_sum, 10)))
 
             
-@numba.jit
+@numba.jit(nopython=True)
 def add_negative_signal(
         coefficients: np.ndarray,
         transmit_freqs: np.ndarray,
